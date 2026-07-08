@@ -4,6 +4,7 @@ import logging
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import Group
@@ -14,6 +15,22 @@ from bot.utils.text import Locale
 logger = logging.getLogger(__name__)
 
 
+async def clear_stale_reply_keyboard(bot: Bot, chat_id: int) -> None:
+    """Remove legacy reply keyboards (e.g. old ⚙️ Меню button) from the group chat."""
+    try:
+        message = await bot.send_message(
+            chat_id,
+            "·",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        try:
+            await bot.delete_message(chat_id, message.message_id)
+        except TelegramBadRequest:
+            pass
+    except TelegramBadRequest:
+        logger.debug("Could not clear reply keyboard in chat %s", chat_id)
+
+
 async def send_quick_panel(
     bot: Bot,
     session: AsyncSession,
@@ -22,6 +39,7 @@ async def send_quick_panel(
     chat_id: int,
     *,
     updated: bool = False,
+    clear_reply_keyboard: bool = False,
 ) -> None:
     if not group.enable_quick_buttons:
         await bot.send_message(chat_id, locale.get("commands.quick_panel_disabled"))
@@ -31,6 +49,9 @@ async def send_quick_panel(
     if not tags:
         await bot.send_message(chat_id, locale.get("no_tags"))
         return
+
+    if clear_reply_keyboard:
+        await clear_stale_reply_keyboard(bot, chat_id)
 
     text = (
         locale.get("commands.quick_panel_updated")
@@ -97,6 +118,7 @@ async def hide_quick_panel(
     chat_id: int,
 ) -> None:
     await _remove_quick_panel_message(bot, session, group, chat_id)
+    await clear_stale_reply_keyboard(bot, chat_id)
     await bot.send_message(chat_id, locale.get("commands.quick_panel_hidden"))
 
 
