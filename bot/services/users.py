@@ -153,14 +153,15 @@ async def set_tag_members(
             )
         )
         loaded_tag.members = list(users_result.scalars().all())
+    member_count = len(loaded_tag.members)
+    tag_name = loaded_tag.name
     await session.commit()
-    await session.refresh(loaded_tag)
     await log_change(
         session,
         group,
         actor_telegram_id,
         "members_assigned",
-        f"tag={loaded_tag.name}; count={len(loaded_tag.members)}",
+        f"tag={tag_name}; count={member_count}",
     )
     return loaded_tag
 
