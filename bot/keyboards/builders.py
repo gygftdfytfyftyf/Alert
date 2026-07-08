@@ -47,6 +47,9 @@ def main_menu_keyboard(
                 ),
             ]
         )
+        rows.append(
+            [InlineKeyboardButton(text=locale.get("buttons.quick_panel"), callback_data=MenuCB(action="quick_panel").pack())]
+        )
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -143,6 +146,13 @@ def settings_keyboard(locale: Locale, group: Group) -> InlineKeyboardMarkup:
                     text=f"{locale.get('settings.enable_change_log')}: "
                     f"{locale.get('settings.value_on') if group.enable_change_log else locale.get('settings.value_off')}",
                     callback_data=SettingsCB(action="toggle", key="enable_change_log").pack(),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"{locale.get('settings.enable_quick_buttons')}: "
+                    f"{locale.get('settings.value_on') if group.enable_quick_buttons else locale.get('settings.value_off')}",
+                    callback_data=SettingsCB(action="toggle", key="enable_quick_buttons").pack(),
                 )
             ],
             [

@@ -19,9 +19,10 @@ from bot.keyboards.builders import (
 )
 from bot.keyboards.inline import AssignCB, CallTagCB, MenuCB, SettingsCB, TagCB
 from bot.services.permissions import is_bot_admin, is_chat_admin, log_change
+from bot.services.quick_panel import refresh_quick_panel, send_quick_panel
+from bot.services.tag_invoke import invoke_tag
 from bot.services.tags import (
     can_use_tags,
-    create_tag,
     delete_tag,
     get_tag,
     rename_tag,
@@ -138,6 +139,19 @@ async def menu_refresh_members(callback: CallbackQuery, session: AsyncSession, l
     await callback.answer(locale.get("commands.members_updated", count=count), show_alert=True)
 
 
+@router.callback_query(MenuCB.filter(F.action == "quick_panel"))
+async def menu_quick_panel(callback: CallbackQuery, session: AsyncSession, locale: Locale) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    is_admin = await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id)
+    if not is_admin and not await can_use_tags(callback.bot, session, group, callback.from_user.id):
+        await callback.answer(locale.get("no_permission"), show_alert=True)
+        return
+    await send_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
+    await callback.answer()
+
+
 @router.callback_query(MenuCB.filter(F.action == "cancel"))
 async def menu_cancel(callback: CallbackQuery, state: FSMContext, session: AsyncSession, locale: Locale) -> None:
     await state.clear()
@@ -221,6 +235,7 @@ async def tag_delete(callback: CallbackQuery, callback_data: TagCB, session: Asy
     name = tag.name
     await delete_tag(session, group, tag, callback.from_user.id)
     await callback.answer(locale.get("commands.tag_deleted", name=name))
+    await refresh_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
     await send_tag_list(
         callback.bot,
         session,
@@ -379,6 +394,7 @@ async def assign_save(
         f"<b>{tag.name}</b>",
         reply_markup=tag_detail_keyboard(locale, tag.id),
     )
+    await refresh_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
 
 
 @router.callback_query(CallTagCB.filter())
@@ -386,22 +402,25 @@ async def call_tag(callback: CallbackQuery, callback_data: CallTagCB, session: A
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    is_admin = await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id)
-    if not is_admin and not await can_use_tags(callback.bot, session, group, callback.from_user.id):
-        await callback.answer(locale.get("no_permission"), show_alert=True)
-        return
     tag = await get_tag(session, group.id, callback_data.tag_id)
     if tag is None:
         await callback.answer(locale.get("commands.tag_not_found"), show_alert=True)
         return
-    active_members = [member for member in tag.members if member.is_active]
-    if not active_members:
-        await callback.answer(locale.get("commands.tag_empty", name=tag.name), show_alert=True)
-        if group.auto_delete_empty_tags and is_admin:
-            await delete_tag(session, group, tag, callback.from_user.id)
+    result = await invoke_tag(
+        callback.bot,
+        session,
+        group,
+        tag,
+        callback.from_user.id,
+        locale,
+    )
+    if result.alert:
+        await callback.answer(result.alert, show_alert=True)
+        if result.deleted_empty_tag:
+            await refresh_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
         return
-    text = format_tag_call(tag.name, active_members)
-    await callback.message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+    if result.message:
+        await callback.message.answer(result.message, parse_mode="HTML", disable_web_page_preview=True)
     await callback.answer()
 
 
@@ -427,6 +446,8 @@ async def settings_toggle(
         group.auto_delete_empty_tags = not group.auto_delete_empty_tags
     elif key == "enable_change_log":
         group.enable_change_log = not group.enable_change_log
+    elif key == "enable_quick_buttons":
+        group.enable_quick_buttons = not group.enable_quick_buttons
     else:
         await callback.answer()
         return

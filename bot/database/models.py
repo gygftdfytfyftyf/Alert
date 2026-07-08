@@ -29,6 +29,7 @@ class Group(Base):
     restrict_tag_creation: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_delete_empty_tags: Mapped[bool] = mapped_column(Boolean, default=False)
     enable_change_log: Mapped[bool] = mapped_column(Boolean, default=True)
+    enable_quick_buttons: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -13,6 +13,7 @@ async def setup_bot(bot: Bot) -> None:
         BotCommand(command="start", description="Запуск бота"),
         BotCommand(command="menu", description="Главное меню"),
         BotCommand(command="tags", description="Список тегов для вызова"),
+        BotCommand(command="panel", description="Быстрые кнопки тегов"),
         BotCommand(command="help", description="Справка"),
     ]
     await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
