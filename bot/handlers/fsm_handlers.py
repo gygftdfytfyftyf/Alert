@@ -35,7 +35,17 @@ async def create_tag_name(message: Message, state: FSMContext, session: AsyncSes
     await state.clear()
     await message.answer(locale.get("commands.tag_created", name=tag.name))
     if group.enable_quick_buttons:
-        await send_quick_panel(message.bot, session, group, locale, message.chat.id, updated=True)
+        await send_quick_panel(
+            message.bot,
+            session,
+            group,
+            locale,
+            message.chat.id,
+            updated=True,
+            actor_user_id=message.from_user.id,
+            actor_can_manage=True,
+            reply_to_message_id=message.message_id,
+        )
     menu_message_id = data.get("menu_message_id")
     if menu_message_id:
         await message.bot.edit_message_text(
@@ -80,7 +90,16 @@ async def rename_tag_name(message: Message, state: FSMContext, session: AsyncSes
     tag = await rename_tag(session, group, tag, name, message.from_user.id)
     await state.clear()
     await message.answer(locale.get("commands.tag_renamed", name=tag.name))
-    await refresh_quick_panel(message.bot, session, group, locale, message.chat.id)
+    await refresh_quick_panel(
+        message.bot,
+        session,
+        group,
+        locale,
+        message.chat.id,
+        actor_user_id=message.from_user.id,
+        actor_can_manage=True,
+        reply_to_message_id=message.message_id,
+    )
     menu_message_id = data.get("menu_message_id")
     if menu_message_id:
         await message.bot.edit_message_text(

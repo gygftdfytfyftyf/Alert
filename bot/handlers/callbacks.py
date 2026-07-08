@@ -196,7 +196,16 @@ async def menu_quick_panel(callback: CallbackQuery, session: AsyncSession, local
     if not access.can_call_tags and not access.can_manage:
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
-    await send_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
+    await send_quick_panel(
+        callback.bot,
+        session,
+        group,
+        locale,
+        callback.message.chat.id,
+        actor_user_id=callback.from_user.id,
+        actor_can_manage=access.can_manage,
+        reply_to_message_id=callback.message.message_id,
+    )
     await callback.answer()
 
 
@@ -295,7 +304,16 @@ async def tag_delete(callback: CallbackQuery, callback_data: TagCB, session: Asy
     name = tag.name
     await delete_tag(session, group, tag, callback.from_user.id)
     await callback.answer(locale.get("commands.tag_deleted", name=name))
-    await refresh_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
+    await refresh_quick_panel(
+        callback.bot,
+        session,
+        group,
+        locale,
+        callback.message.chat.id,
+        actor_user_id=callback.from_user.id,
+        actor_can_manage=True,
+        reply_to_message_id=callback.message.message_id,
+    )
     await send_tag_list(
         callback.bot,
         session,
@@ -454,7 +472,16 @@ async def assign_save(
         f"<b>{tag.name}</b>",
         reply_markup=tag_detail_keyboard(locale, tag.id),
     )
-    await refresh_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
+    await refresh_quick_panel(
+        callback.bot,
+        session,
+        group,
+        locale,
+        callback.message.chat.id,
+        actor_user_id=callback.from_user.id,
+        actor_can_manage=True,
+        reply_to_message_id=callback.message.message_id,
+    )
 
 
 @router.callback_query(CallTagCB.filter())
@@ -481,7 +508,16 @@ async def call_tag(callback: CallbackQuery, callback_data: CallTagCB, session: A
     if result.alert:
         await callback.answer(result.alert, show_alert=True)
         if result.deleted_empty_tag:
-            await refresh_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
+            await refresh_quick_panel(
+                callback.bot,
+                session,
+                group,
+                locale,
+                callback.message.chat.id,
+                actor_user_id=callback.from_user.id,
+                actor_can_manage=access.can_manage,
+                reply_to_message_id=callback.message.message_id,
+            )
         return
     if result.message:
         await callback.message.answer(result.message, parse_mode="HTML", disable_web_page_preview=True)

@@ -6,7 +6,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.database.models import Group
+from bot.database.models import Group, Tag
 from bot.keyboards.builders import tag_list_keyboard
 from bot.keyboards.reply_builders import quick_tags_reply_keyboard, remove_reply_keyboard
 from bot.services.tags import list_tags
@@ -21,7 +21,7 @@ async def _upsert_pinned_inline_panel(
     group: Group,
     locale: Locale,
     chat_id: int,
-    tags: list,
+    tags: list[Tag],
 ) -> None:
     text = locale.get("commands.quick_panel_inline")
     keyboard = tag_list_keyboard(locale, tags, for_call=True)
@@ -81,6 +81,74 @@ async def _remove_pinned_inline_panel(
         pass
 
 
+async def _send_group_reply_keyboard(
+    bot: Bot,
+    locale: Locale,
+    chat_id: int,
+    tags: list[Tag],
+    text: str,
+) -> None:
+    await bot.send_message(
+        chat_id,
+        text,
+        reply_markup=quick_tags_reply_keyboard(locale, tags),
+        parse_mode="HTML",
+    )
+
+
+async def _send_manager_reply_keyboard(
+    bot: Bot,
+    locale: Locale,
+    chat_id: int,
+    tags: list[Tag],
+    actor_user_id: int,
+    *,
+    reply_to_message_id: int | None = None,
+) -> None:
+    keyboard = quick_tags_reply_keyboard(locale, tags, show_menu_button=True, selective=True)
+    text = f'<a href="tg://user?id={actor_user_id}">\u200b</a>'
+    kwargs: dict = {
+        "chat_id": chat_id,
+        "text": text,
+        "reply_markup": keyboard,
+        "parse_mode": "HTML",
+    }
+    if reply_to_message_id is not None:
+        kwargs["reply_to_message_id"] = reply_to_message_id
+    try:
+        message = await bot.send_message(**kwargs)
+    except TelegramBadRequest:
+        kwargs["text"] = locale.get("commands.quick_panel_manager_hint")
+        message = await bot.send_message(**kwargs)
+    try:
+        await bot.delete_message(chat_id, message.message_id)
+    except TelegramBadRequest:
+        pass
+
+
+async def _publish_reply_keyboards(
+    bot: Bot,
+    locale: Locale,
+    chat_id: int,
+    tags: list[Tag],
+    text: str,
+    *,
+    actor_user_id: int | None = None,
+    actor_can_manage: bool = False,
+    reply_to_message_id: int | None = None,
+) -> None:
+    await _send_group_reply_keyboard(bot, locale, chat_id, tags, text)
+    if actor_can_manage and actor_user_id is not None:
+        await _send_manager_reply_keyboard(
+            bot,
+            locale,
+            chat_id,
+            tags,
+            actor_user_id,
+            reply_to_message_id=reply_to_message_id,
+        )
+
+
 async def send_quick_panel(
     bot: Bot,
     session: AsyncSession,
@@ -89,6 +157,9 @@ async def send_quick_panel(
     chat_id: int,
     *,
     updated: bool = False,
+    actor_user_id: int | None = None,
+    actor_can_manage: bool = False,
+    reply_to_message_id: int | None = None,
 ) -> None:
     if not group.enable_quick_buttons:
         await bot.send_message(chat_id, locale.get("commands.quick_panel_disabled"))
@@ -104,18 +175,21 @@ async def send_quick_panel(
         if updated
         else locale.get("commands.quick_panel_on")
     )
-    reply_keyboard = quick_tags_reply_keyboard(locale, tags)
 
     try:
         await _upsert_pinned_inline_panel(bot, session, group, locale, chat_id, tags)
     except Exception:
         logger.exception("Failed to update pinned inline quick panel in chat %s", chat_id)
 
-    await bot.send_message(
+    await _publish_reply_keyboards(
+        bot,
+        locale,
         chat_id,
+        tags,
         text,
-        reply_markup=reply_keyboard,
-        parse_mode="HTML",
+        actor_user_id=actor_user_id,
+        actor_can_manage=actor_can_manage,
+        reply_to_message_id=reply_to_message_id,
     )
 
 
@@ -140,6 +214,10 @@ async def refresh_quick_panel(
     group: Group,
     locale: Locale,
     chat_id: int,
+    *,
+    actor_user_id: int | None = None,
+    actor_can_manage: bool = False,
+    reply_to_message_id: int | None = None,
 ) -> None:
     if not group.enable_quick_buttons:
         return
@@ -153,9 +231,13 @@ async def refresh_quick_panel(
     except Exception:
         logger.exception("Failed to refresh pinned inline quick panel in chat %s", chat_id)
 
-    await bot.send_message(
+    await _publish_reply_keyboards(
+        bot,
+        locale,
         chat_id,
+        tags,
         locale.get("commands.quick_panel_updated"),
-        reply_markup=quick_tags_reply_keyboard(locale, tags),
-        parse_mode="HTML",
+        actor_user_id=actor_user_id,
+        actor_can_manage=actor_can_manage,
+        reply_to_message_id=reply_to_message_id,
     )

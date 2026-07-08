@@ -25,7 +25,16 @@ async def cmd_panel(message: Message, session: AsyncSession, locale: Locale) -> 
         return
     access = await get_user_access(message.bot, session, group, message.from_user.id)
     if access.can_manage or access.can_call_tags:
-        await send_quick_panel(message.bot, session, group, locale, message.chat.id)
+        await send_quick_panel(
+            message.bot,
+            session,
+            group,
+            locale,
+            message.chat.id,
+            actor_user_id=message.from_user.id,
+            actor_can_manage=access.can_manage,
+            reply_to_message_id=message.message_id,
+        )
     else:
         await message.answer(locale.get("no_permission"))
 
