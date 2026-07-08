@@ -88,14 +88,7 @@ async def send_user_interface(
         return
 
     if access.can_call_tags:
-        await send_quick_panel(
-            bot,
-            session,
-            group,
-            locale,
-            chat_id,
-            clear_reply_keyboard=True,
-        )
+        await send_quick_panel(bot, session, group, locale, chat_id)
         return
 
     await bot.send_message(chat_id, locale.get("no_permission"))

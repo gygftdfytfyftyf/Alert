@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.handlers.helpers import ensure_group, is_group_chat, send_admin_panel
 from bot.keyboards.reply import MENU_BUTTON, parse_quick_tag_text
 from bot.services.permissions import can_assign_editors, get_user_access
-from bot.services.quick_panel import clear_stale_reply_keyboard, hide_quick_panel, send_quick_panel
+from bot.services.quick_panel import hide_quick_panel, send_quick_panel
 from bot.services.tag_invoke import invoke_tag_by_name
 from bot.utils.text import Locale
 
@@ -25,28 +25,19 @@ async def cmd_panel(message: Message, session: AsyncSession, locale: Locale) -> 
         return
     access = await get_user_access(message.bot, session, group, message.from_user.id)
     if access.can_manage or access.can_call_tags:
-        await send_quick_panel(
-            message.bot,
-            session,
-            group,
-            locale,
-            message.chat.id,
-            clear_reply_keyboard=True,
-        )
+        await send_quick_panel(message.bot, session, group, locale, message.chat.id)
     else:
         await message.answer(locale.get("no_permission"))
 
 
 @router.message(F.text == MENU_BUTTON, StateFilter(None))
-async def legacy_menu_button(message: Message, session: AsyncSession, locale: Locale) -> None:
-    """Handle stale reply-keyboard «Меню» left from older bot versions."""
+async def menu_button(message: Message, session: AsyncSession, locale: Locale) -> None:
     if not is_group_chat(message):
         return
     group = await ensure_group(message, session, locale)
     if group is None:
         return
 
-    await clear_stale_reply_keyboard(message.bot, message.chat.id)
     access = await get_user_access(message.bot, session, group, message.from_user.id)
     if access.can_manage:
         await send_admin_panel(

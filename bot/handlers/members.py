@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.handlers.helpers import send_admin_panel
 from bot.services.permissions import get_or_create_group, is_bot_admin
-from bot.services.quick_panel import clear_stale_reply_keyboard
 from bot.services.users import sync_member_from_update
 from bot.utils.text import Locale
 
@@ -39,7 +38,6 @@ async def on_bot_membership(
     logger.info("Bot added to group %s (%s)", chat.id, chat.title)
 
     await update.bot.send_message(chat.id, locale.get("commands.added_to_group"))
-    await clear_stale_reply_keyboard(update.bot, chat.id)
 
     if await is_bot_admin(update.bot, chat.id):
         actor_id = update.from_user.id if update.from_user else 0

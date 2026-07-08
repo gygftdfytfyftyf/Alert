@@ -196,7 +196,7 @@ async def menu_quick_panel(callback: CallbackQuery, session: AsyncSession, local
     if not access.can_call_tags and not access.can_manage:
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
-    await send_quick_panel(callback.bot, session, group, locale, callback.message.chat.id, clear_reply_keyboard=True)
+    await send_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
     await callback.answer()
 
 
