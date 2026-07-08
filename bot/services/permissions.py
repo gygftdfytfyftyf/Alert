@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from aiogram import Bot
 from aiogram.enums import ChatMemberStatus
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramMigrateToChat
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
