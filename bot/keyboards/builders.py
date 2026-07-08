@@ -18,50 +18,24 @@ def cancel_keyboard(locale: Locale) -> InlineKeyboardMarkup:
 def main_menu_keyboard(
     locale: Locale,
     *,
-    can_manage: bool,
     can_assign_editors: bool,
-    can_view_tags: bool,
-    can_call_tags: bool,
 ) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
-
-    if can_manage:
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text=locale.get("buttons.create_tag"), callback_data=MenuCB(action="create_tag").pack())],
+        [InlineKeyboardButton(text=locale.get("buttons.tag_list_manage"), callback_data=MenuCB(action="tag_list").pack())],
+        [
+            InlineKeyboardButton(text=locale.get("buttons.settings"), callback_data=MenuCB(action="settings").pack()),
+            InlineKeyboardButton(
+                text=locale.get("buttons.refresh_members"),
+                callback_data=MenuCB(action="refresh_members").pack(),
+            ),
+        ],
+        [InlineKeyboardButton(text=locale.get("buttons.quick_panel"), callback_data=MenuCB(action="quick_panel").pack())],
+    ]
+    if can_assign_editors:
         rows.append(
-            [InlineKeyboardButton(text=locale.get("buttons.create_tag"), callback_data=MenuCB(action="create_tag").pack())]
+            [InlineKeyboardButton(text=locale.get("buttons.manage_editors"), callback_data=MenuCB(action="editors").pack())]
         )
-        rows.append(
-            [InlineKeyboardButton(text=locale.get("buttons.tag_list_manage"), callback_data=MenuCB(action="tag_list").pack())]
-        )
-        rows.append(
-            [
-                InlineKeyboardButton(text=locale.get("buttons.settings"), callback_data=MenuCB(action="settings").pack()),
-                InlineKeyboardButton(
-                    text=locale.get("buttons.refresh_members"),
-                    callback_data=MenuCB(action="refresh_members").pack(),
-                ),
-            ]
-        )
-        rows.append(
-            [InlineKeyboardButton(text=locale.get("buttons.quick_panel"), callback_data=MenuCB(action="quick_panel").pack())]
-        )
-        if can_assign_editors:
-            rows.append(
-                [InlineKeyboardButton(text=locale.get("buttons.manage_editors"), callback_data=MenuCB(action="editors").pack())]
-            )
-    else:
-        if can_call_tags:
-            rows.append(
-                [InlineKeyboardButton(text=locale.get("buttons.call_tag"), callback_data=MenuCB(action="tag_list").pack())]
-            )
-        if can_view_tags and not can_call_tags:
-            rows.append(
-                [InlineKeyboardButton(text=locale.get("buttons.tag_list"), callback_data=MenuCB(action="tag_list").pack())]
-            )
-        if can_call_tags:
-            rows.append(
-                [InlineKeyboardButton(text=locale.get("buttons.quick_panel"), callback_data=MenuCB(action="quick_panel").pack())]
-            )
-
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

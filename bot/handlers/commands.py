@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import logging
 
-from aiogram import F, Router
+from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.handlers.helpers import ensure_group, is_group_chat, send_main_menu, send_tag_list
+from bot.handlers.helpers import ensure_group, is_group_chat, send_user_interface
 from bot.utils.text import Locale
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ async def cmd_start(message: Message, session: AsyncSession, locale: Locale) -> 
         if group is None:
             return
         await message.answer(locale.get("commands.start_group"))
-        await send_main_menu(
+        await send_user_interface(
             message.bot,
             session,
             locale,
@@ -43,7 +43,7 @@ async def cmd_menu(message: Message, session: AsyncSession, locale: Locale) -> N
     group = await ensure_group(message, session, locale)
     if group is None:
         return
-    await send_main_menu(
+    await send_user_interface(
         message.bot,
         session,
         locale,
@@ -58,7 +58,7 @@ async def cmd_tags(message: Message, session: AsyncSession, locale: Locale) -> N
     group = await ensure_group(message, session, locale)
     if group is None:
         return
-    await send_tag_list(
+    await send_user_interface(
         message.bot,
         session,
         locale,

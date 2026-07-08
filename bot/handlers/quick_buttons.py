@@ -7,8 +7,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.handlers.helpers import ensure_group, is_group_chat, send_main_menu
-from bot.keyboards.reply import MENU_BUTTON, parse_quick_tag_text
+from bot.keyboards.reply import parse_quick_tag_text
 from bot.services.permissions import can_assign_editors, get_user_access
 from bot.services.quick_panel import hide_quick_panel, send_quick_panel
 from bot.services.tag_invoke import invoke_tag_by_name
@@ -24,10 +23,10 @@ async def cmd_panel(message: Message, session: AsyncSession, locale: Locale) -> 
     if group is None:
         return
     access = await get_user_access(message.bot, session, group, message.from_user.id)
-    if not access.can_call_tags and not access.can_manage:
+    if access.can_manage or access.can_call_tags:
+        await send_quick_panel(message.bot, session, group, locale, message.chat.id)
+    else:
         await message.answer(locale.get("no_permission"))
-        return
-    await send_quick_panel(message.bot, session, group, locale, message.chat.id)
 
 
 @router.message(Command("panel_hide"))
@@ -39,23 +38,6 @@ async def cmd_panel_hide(message: Message, session: AsyncSession, locale: Locale
         await message.answer(locale.get("no_permission"))
         return
     await hide_quick_panel(message.bot, locale, message.chat.id)
-
-
-@router.message(F.text == MENU_BUTTON, StateFilter(None))
-async def quick_menu_button(message: Message, session: AsyncSession, locale: Locale) -> None:
-    if not is_group_chat(message):
-        return
-    group = await ensure_group(message, session, locale)
-    if group is None:
-        return
-    await send_main_menu(
-        message.bot,
-        session,
-        locale,
-        message.chat.id,
-        message.from_user.id,
-        group,
-    )
 
 
 @router.message(F.text.startswith("📣"), StateFilter(None))
