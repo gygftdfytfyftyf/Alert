@@ -12,6 +12,7 @@ from bot.handlers.states import AssignMembersState, CreateTagState, RenameTagSta
 from bot.keyboards.builders import assign_members_keyboard, tag_detail_keyboard
 from bot.services.member_resolve import resolve_member_tokens
 from bot.services.quick_panel import refresh_quick_panel, send_quick_panel
+from bot.services.tag_members_display import format_assign_members_caption
 from bot.services.tag_pending import upsert_pending_member
 from bot.services.tags import create_tag, get_tag, rename_tag, tag_name_exists
 from bot.services.users import list_active_users
@@ -170,7 +171,7 @@ async def assign_members_manual(
             page = int(data.get("page", 0))
             await state.set_state(AssignMembersState.selecting)
             await message.bot.edit_message_text(
-                locale.get("buttons.assign_members") + f": <b>{tag.name}</b>",
+                format_assign_members_caption(locale, tag),
                 chat_id=message.chat.id,
                 message_id=menu_message_id,
                 reply_markup=assign_members_keyboard(

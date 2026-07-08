@@ -70,6 +70,7 @@ commands:
     бот автоматически перенесёт его в базу.
   members_manual_added: "Добавлено в выбор: {count} ({names})"
   members_manual_pending: "Добавлено как ожидающие (можно тегать сразу): {count} ({names})"
+  members_pending_in_tag: "Ожидающие (добавлены вручную): {names}"
   members_manual_failed: "Не удалось добавить: {count}"
   members_manual_none: "Не распознано ни одного участника. Проверьте формат."
   members_manual_error_username_unknown: "username неизвестен боту — укажите ID или попросите написать в чат"

@@ -32,6 +32,7 @@ from bot.services.permissions import (
 )
 from bot.services.quick_panel import refresh_quick_panel, send_quick_panel
 from bot.services.tag_invoke import invoke_tag
+from bot.services.tag_members_display import format_assign_members_caption
 from bot.services.tags import delete_tag, get_tag, rename_tag, tag_name_exists
 from bot.services.users import (
     format_user_mention,
@@ -388,7 +389,7 @@ async def tag_assign_start(
         menu_message_id=callback.message.message_id,
     )
     await callback.message.edit_text(
-        locale.get("buttons.assign_members") + f": <b>{tag.name}</b>",
+        format_assign_members_caption(locale, tag),
         reply_markup=assign_members_keyboard(locale, tag.id, users, selected_ids, page=0),
     )
     await callback.answer()
@@ -415,7 +416,7 @@ async def _render_assign_picker(
     await state.set_state(AssignMembersState.selecting)
     await state.update_data(page=current_page)
     await callback.message.edit_text(
-        locale.get("buttons.assign_members") + f": <b>{tag.name}</b>",
+        format_assign_members_caption(locale, tag),
         reply_markup=assign_members_keyboard(
             locale,
             tag_id,

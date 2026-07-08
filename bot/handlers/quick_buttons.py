@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command, StateFilter, or_f
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.handlers.helpers import ensure_group, is_group_chat, send_admin_panel
+from bot.handlers.states import AssignMembersState
 from bot.keyboards.reply import MENU_BUTTON, parse_quick_tag_text
 from bot.services.permissions import can_assign_editors, get_user_access
 from bot.services.quick_panel import hide_quick_panel, send_quick_panel
@@ -16,6 +17,9 @@ from bot.utils.text import Locale
 
 logger = logging.getLogger(__name__)
 router = Router(name="quick_buttons")
+
+# Быстрые кнопки должны работать и во время выбора участников в админ-меню.
+_QUICK_BUTTON_STATES = or_f(StateFilter(None), StateFilter(AssignMembersState.selecting))
 
 
 @router.message(Command("panel"))
@@ -39,7 +43,7 @@ async def cmd_panel(message: Message, session: AsyncSession, locale: Locale) -> 
         await message.answer(locale.get("no_permission"))
 
 
-@router.message(F.text == MENU_BUTTON, StateFilter(None))
+@router.message(F.text == MENU_BUTTON, _QUICK_BUTTON_STATES)
 async def menu_button(message: Message, session: AsyncSession, locale: Locale) -> None:
     if not is_group_chat(message):
         return
@@ -73,7 +77,7 @@ async def cmd_panel_hide(message: Message, session: AsyncSession, locale: Locale
     await hide_quick_panel(message.bot, session, group, locale, message.chat.id)
 
 
-@router.message(F.text.startswith("📣"), StateFilter(None))
+@router.message(F.text.startswith("📣"), _QUICK_BUTTON_STATES)
 async def quick_tag_button(message: Message, session: AsyncSession, locale: Locale) -> None:
     if not is_group_chat(message) or not message.text:
         return
