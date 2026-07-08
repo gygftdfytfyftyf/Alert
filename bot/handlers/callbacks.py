@@ -463,8 +463,8 @@ async def call_tag(callback: CallbackQuery, callback_data: CallTagCB, session: A
     if group is None:
         return
     access = await get_user_access(callback.bot, session, group, callback.from_user.id)
-    if not access.can_manage:
-        await callback.answer(locale.get("commands.use_quick_buttons_only"), show_alert=True)
+    if not access.can_call_tags:
+        await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     tag = await get_tag(session, group.id, callback_data.tag_id)
     if tag is None:

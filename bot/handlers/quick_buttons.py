@@ -38,7 +38,7 @@ async def cmd_panel_hide(message: Message, session: AsyncSession, locale: Locale
     if not await can_assign_editors(message.bot, group, message.from_user.id):
         await message.answer(locale.get("no_permission"))
         return
-    await hide_quick_panel(message.bot, locale, message.chat.id)
+    await hide_quick_panel(message.bot, session, group, locale, message.chat.id)
 
 
 @router.message(F.text.startswith("📣"), StateFilter(None))

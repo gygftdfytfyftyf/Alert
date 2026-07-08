@@ -27,6 +27,8 @@ def _apply_migrations(connection) -> None:
         connection.execute(
             text("ALTER TABLE groups ADD COLUMN enable_quick_buttons BOOLEAN DEFAULT 1 NOT NULL")
         )
+    if "quick_panel_message_id" not in columns:
+        connection.execute(text("ALTER TABLE groups ADD COLUMN quick_panel_message_id BIGINT"))
 
 
 async def init_db() -> None:
