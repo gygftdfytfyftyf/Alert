@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from bot.database.models import Group, Tag, User
+from bot.database.models import Group, GroupEditor, Tag, User
 from bot.services.permissions import log_change
 
 
@@ -29,6 +29,81 @@ def member_to_user_fields(member: ChatMember) -> dict:
         "last_name": tg_user.last_name,
         "is_active": member.status in ACTIVE_STATUSES and not tg_user.is_bot,
     }
+
+
+async def prune_user_from_all_tags(
+    session: AsyncSession,
+    group: Group,
+    user: User,
+    *,
+    actor_telegram_id: int = 0,
+) -> bool:
+    result = await session.execute(
+        select(Tag).options(selectinload(Tag.members)).where(Tag.group_id == group.id)
+    )
+    changed = False
+    for tag in result.scalars():
+        if any(member.id == user.id for member in tag.members):
+            tag.members = [member for member in tag.members if member.id != user.id]
+            changed = True
+    if changed:
+        await session.commit()
+        await log_change(
+            session,
+            group,
+            actor_telegram_id,
+            "member_left_tags_pruned",
+            f"user={user.telegram_user_id}",
+        )
+    return changed
+
+
+async def deactivate_user_and_prune_tags(
+    session: AsyncSession,
+    group: Group,
+    telegram_user_id: int,
+    *,
+    actor_telegram_id: int = 0,
+) -> bool:
+    result = await session.execute(
+        select(User).where(
+            User.group_id == group.id,
+            User.telegram_user_id == telegram_user_id,
+        )
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        return False
+
+    user.is_active = False
+    await session.commit()
+    pruned = await prune_user_from_all_tags(
+        session,
+        group,
+        user,
+        actor_telegram_id=actor_telegram_id,
+    )
+
+    editor_result = await session.execute(
+        select(GroupEditor).where(
+            GroupEditor.group_id == group.id,
+            GroupEditor.telegram_user_id == telegram_user_id,
+        )
+    )
+    editor = editor_result.scalar_one_or_none()
+    if editor is not None:
+        await session.delete(editor)
+        await session.commit()
+        await log_change(
+            session,
+            group,
+            actor_telegram_id,
+            "editor_removed",
+            f"user_id={telegram_user_id}; reason=left_group",
+        )
+        return True
+
+    return pruned
 
 
 async def upsert_user(
@@ -105,13 +180,22 @@ async def refresh_group_members(
         try:
             member = await bot.get_chat_member(group.telegram_group_id, user.telegram_user_id)
         except TelegramBadRequest:
-            user.is_active = False
+            if user.is_active:
+                user.is_active = False
+                await session.commit()
+                await prune_user_from_all_tags(session, group, user, actor_telegram_id=actor_telegram_id)
             continue
         fields = member_to_user_fields(member)
         seen_ids.add(fields["telegram_user_id"])
         if fields["is_active"]:
             active_count += 1
-        await upsert_user(session, group.id, **fields)
+            await upsert_user(session, group.id, **fields)
+        elif user.is_active:
+            user.is_active = False
+            await session.commit()
+            await prune_user_from_all_tags(session, group, user, actor_telegram_id=actor_telegram_id)
+        else:
+            await upsert_user(session, group.id, **fields)
 
     await session.commit()
     await log_change(session, group, actor_telegram_id, "members_refreshed")
@@ -122,10 +206,20 @@ async def sync_member_from_update(
     session: AsyncSession,
     group: Group,
     member: ChatMember,
+    *,
+    actor_telegram_id: int = 0,
 ) -> User | None:
     if member.user.is_bot:
         return None
     fields = member_to_user_fields(member)
+    if not fields["is_active"]:
+        await deactivate_user_and_prune_tags(
+            session,
+            group,
+            fields["telegram_user_id"],
+            actor_telegram_id=actor_telegram_id,
+        )
+        return None
     return await upsert_user(session, group.id, **fields)
 
 

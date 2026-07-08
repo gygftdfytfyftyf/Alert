@@ -19,6 +19,16 @@ class Settings:
     database_url: str
     log_level: str
     locale: str
+    owner_ids: frozenset[int]
+
+
+def _parse_owner_ids(raw: str) -> frozenset[int]:
+    ids: set[int] = set()
+    for chunk in raw.split(","):
+        value = chunk.strip()
+        if value.isdigit():
+            ids.add(int(value))
+    return frozenset(ids)
 
 
 def get_settings() -> Settings:
@@ -36,4 +46,5 @@ def get_settings() -> Settings:
         database_url=database_url,
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
         locale=os.getenv("LOCALE", DEFAULT_LOCALE).strip(),
+        owner_ids=_parse_owner_ids(os.getenv("BOT_OWNER_IDS", "")),
     )
