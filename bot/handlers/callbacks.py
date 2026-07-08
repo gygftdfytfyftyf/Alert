@@ -14,6 +14,7 @@ from bot.handlers.states import AssignMembersState, CreateTagState, RenameTagSta
 from bot.keyboards.builders import (
     _user_label,
     add_editor_keyboard,
+    assign_manual_prompt_keyboard,
     assign_members_keyboard,
     cancel_keyboard,
     editors_menu_keyboard,
@@ -382,6 +383,87 @@ async def tag_assign_start(
     await callback.message.edit_text(
         locale.get("buttons.assign_members") + f": <b>{tag.name}</b>",
         reply_markup=assign_members_keyboard(locale, tag.id, users, selected_ids, page=0),
+    )
+    await callback.answer()
+
+
+async def _render_assign_picker(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    locale: Locale,
+    group: Group,
+    state: FSMContext,
+    tag_id: int,
+    *,
+    page: int | None = None,
+) -> None:
+    data = await state.get_data()
+    current_page = page if page is not None else int(data.get("page", 0))
+    selected_ids = set(data.get("selected_ids", []))
+    tag = await get_tag(session, group.id, tag_id)
+    if tag is None:
+        await state.clear()
+        return
+    users = await list_active_users(session, group.id)
+    await state.set_state(AssignMembersState.selecting)
+    await state.update_data(page=current_page)
+    await callback.message.edit_text(
+        locale.get("buttons.assign_members") + f": <b>{tag.name}</b>",
+        reply_markup=assign_members_keyboard(
+            locale,
+            tag_id,
+            users,
+            selected_ids,
+            page=current_page,
+        ),
+    )
+
+
+@router.callback_query(AssignCB.filter(F.action == "manual"))
+async def assign_manual_start(
+    callback: CallbackQuery,
+    callback_data: AssignCB,
+    state: FSMContext,
+    session: AsyncSession,
+    locale: Locale,
+) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
+        await callback.answer(locale.get("no_permission"), show_alert=True)
+        return
+    tag = await get_tag(session, group.id, callback_data.tag_id)
+    if tag is None:
+        await callback.answer(locale.get("commands.tag_not_found"), show_alert=True)
+        return
+    await state.set_state(AssignMembersState.waiting_manual)
+    await callback.message.edit_text(
+        locale.get("commands.enter_members_manual"),
+        reply_markup=assign_manual_prompt_keyboard(locale, tag.id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(AssignCB.filter(F.action == "back"))
+async def assign_manual_back(
+    callback: CallbackQuery,
+    callback_data: AssignCB,
+    state: FSMContext,
+    session: AsyncSession,
+    locale: Locale,
+) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    await _render_assign_picker(
+        callback,
+        session,
+        locale,
+        group,
+        state,
+        callback_data.tag_id,
+        page=callback_data.page,
     )
     await callback.answer()
 

@@ -57,6 +57,22 @@ commands:
   members_updated: "Список участников обновлён. Активных: {count}."
   members_title: "<b>Участники тега «{name}»</b>"
   members_saved: "Состав тега «{name}» сохранён."
+  enter_members_manual: |
+    <b>Добавить участников вручную</b>
+
+    Отправьте список — каждый с новой строки или через запятую:
+    • @username
+    • числовой Telegram ID
+
+    <i>Полный список группы Telegram API не отдаёт.</i>
+    Если @username не найден — укажите ID или попросите человека написать в чат.
+  members_manual_added: "Добавлено в выбор: {count} ({names})"
+  members_manual_failed: "Не удалось добавить: {count}"
+  members_manual_none: "Не распознано ни одного участника. Проверьте формат."
+  members_manual_error_username_unknown: "username неизвестен боту — укажите ID или попросите написать в чат"
+  members_manual_error_not_in_group: "не в группе или недоступен"
+  members_manual_error_empty: "пустая строка"
+  members_manual_error_unknown: "ошибка"
   no_permission: "У вас нет прав для этого действия."
   group_only: "Эта команда доступна только в группах."
   private_only: "Эта команда доступна только в личных сообщениях с ботом."
@@ -97,6 +113,7 @@ buttons:
   cancel: "❌ Отмена"
   rename: "✏️ Переименовать"
   assign_members: "👥 Назначить участников"
+  add_members_manual: "✏️ Добавить вручную"
   view_members: "👀 Посмотреть участников"
   delete_tag: "🗑 Удалить тег"
   call_tag: "📣 Вызвать тег"

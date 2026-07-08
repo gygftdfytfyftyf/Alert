@@ -13,3 +13,4 @@ class RenameTagState(StatesGroup):
 
 class AssignMembersState(StatesGroup):
     selecting = State()
+    waiting_manual = State()

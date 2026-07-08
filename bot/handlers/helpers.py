@@ -25,7 +25,7 @@ async def ensure_group(
 ) -> Group | None:
     message = event if isinstance(event, Message) else event.message
     if message is None or not is_group_chat(message):
-        text = locale.get("group_only")
+        text = locale.get("commands.group_only")
         if isinstance(event, Message):
             await event.answer(text)
         else:

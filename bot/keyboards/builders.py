@@ -267,9 +267,30 @@ def assign_members_keyboard(
         rows.append(nav_row)
 
     rows.append(
+        [
+            InlineKeyboardButton(
+                text=locale.get("buttons.add_members_manual"),
+                callback_data=AssignCB(action="manual", tag_id=tag_id, page=page).pack(),
+            )
+        ]
+    )
+    rows.append(
         [InlineKeyboardButton(text=locale.get("buttons.save"), callback_data=AssignCB(action="save", tag_id=tag_id).pack())]
     )
     rows.append(
         [InlineKeyboardButton(text=locale.get("buttons.back"), callback_data=TagCB(action="open", tag_id=tag_id).pack())]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def assign_manual_prompt_keyboard(locale: Locale, tag_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=locale.get("buttons.back"),
+                    callback_data=AssignCB(action="back", tag_id=tag_id).pack(),
+                )
+            ]
+        ]
+    )
