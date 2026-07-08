@@ -52,7 +52,7 @@ async def send_user_interface(
     access = await get_user_access(bot, session, group, user_id)
 
     if access.can_manage:
-        await send_main_menu(
+        await send_admin_panel(
             bot,
             session,
             locale,
@@ -65,9 +65,15 @@ async def send_user_interface(
 
     if edit_message_id is not None:
         try:
-            await bot.edit_message_reply_markup(chat_id=chat_id, message_id=edit_message_id, reply_markup=None)
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=edit_message_id,
+                text=locale.get("commands.use_quick_buttons_only"),
+                reply_markup=None,
+            )
         except Exception:
             pass
+        return
 
     if access.can_call_tags:
         await send_quick_panel(bot, session, group, locale, chat_id)
@@ -76,7 +82,7 @@ async def send_user_interface(
     await bot.send_message(chat_id, locale.get("no_permission"))
 
 
-async def send_main_menu(
+async def send_admin_panel(
     bot: Bot,
     session: AsyncSession,
     locale: Locale,
@@ -100,10 +106,7 @@ async def send_main_menu(
         return
 
     text = locale.get("commands.menu_title_manage")
-    keyboard = main_menu_keyboard(
-        locale,
-        can_assign_editors=access.can_assign_editors,
-    )
+    keyboard = main_menu_keyboard(locale, can_assign_editors=access.can_assign_editors)
 
     if edit_message_id is not None:
         await bot.edit_message_text(
@@ -114,6 +117,10 @@ async def send_main_menu(
         )
     else:
         await bot.send_message(chat_id, text, reply_markup=keyboard)
+
+
+# Обратная совместимость для существующих импортов
+send_main_menu = send_admin_panel
 
 
 async def send_tag_list(
@@ -128,25 +135,24 @@ async def send_tag_list(
 ) -> None:
     access = await get_user_access(bot, session, group, user_id)
     if not access.can_manage:
-        await send_user_interface(
-            bot,
-            session,
-            locale,
-            chat_id,
-            user_id,
-            group,
-            edit_message_id=edit_message_id,
-        )
+        if edit_message_id is not None:
+            try:
+                await bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=edit_message_id,
+                    text=locale.get("commands.use_quick_buttons_only"),
+                    reply_markup=None,
+                )
+            except Exception:
+                pass
+        else:
+            await send_user_interface(bot, session, locale, chat_id, user_id, group)
         return
 
     tags = await list_tags(session, group.id)
     if not tags:
         text = locale.get("no_tags")
-        keyboard = main_menu_keyboard(
-            locale,
-            can_manage=True,
-            can_assign_editors=access.can_assign_editors,
-        )
+        keyboard = main_menu_keyboard(locale, can_assign_editors=access.can_assign_editors)
     else:
         text = locale.get("commands.tags_title")
         keyboard = tag_list_keyboard(locale, tags, for_call=False)

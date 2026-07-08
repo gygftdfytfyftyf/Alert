@@ -7,7 +7,7 @@ from aiogram.enums import ChatMemberStatus
 from aiogram.types import ChatMemberUpdated
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.handlers.helpers import send_main_menu
+from bot.handlers.helpers import send_admin_panel
 from bot.services.permissions import get_or_create_group, is_bot_admin
 from bot.services.users import sync_member_from_update
 from bot.utils.text import Locale
@@ -42,7 +42,7 @@ async def on_bot_membership(
     if await is_bot_admin(update.bot, chat.id):
         actor_id = update.from_user.id if update.from_user else 0
         if actor_id:
-            await send_main_menu(
+            await send_admin_panel(
                 update.bot,
                 session,
                 locale,

@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from aiogram import Bot
+from aiogram.enums import ChatMemberStatus
+from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import Group, GroupEditor
 
+logger = logging.getLogger(__name__)
 
-ADMIN_STATUSES = {
-    "creator",
-    "administrator",
-}
+ADMIN_STATUSES = {ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR}
 
 
 @dataclass(frozen=True)
@@ -26,17 +27,24 @@ class UserAccess:
 
 
 async def is_telegram_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
-    from aiogram.enums import ChatMemberStatus
-    from aiogram.exceptions import TelegramBadRequest
-
     try:
         member = await bot.get_chat_member(chat_id, user_id)
-    except TelegramBadRequest:
+        if member.status in ADMIN_STATUSES:
+            return True
+    except TelegramBadRequest as exc:
+        logger.warning("get_chat_member failed for user %s in chat %s: %s", user_id, chat_id, exc)
+
+    try:
+        administrators = await bot.get_chat_administrators(chat_id)
+        return any(
+            admin.user.id == user_id and admin.status in ADMIN_STATUSES
+            for admin in administrators
+        )
+    except TelegramBadRequest as exc:
+        logger.warning("get_chat_administrators failed for chat %s: %s", chat_id, exc)
         return False
-    return member.status in {ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR}
 
 
-# Обратная совместимость
 is_chat_admin = is_telegram_admin
 
 

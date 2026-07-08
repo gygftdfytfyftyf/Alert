@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import ChangeLog, Group
-from bot.handlers.helpers import ensure_group, send_main_menu, send_tag_list, send_user_interface
+from bot.handlers.helpers import ensure_group, send_admin_panel, send_tag_list, send_user_interface
 from bot.handlers.states import AssignMembersState, CreateTagState, RenameTagState
 from bot.keyboards.builders import (
     _user_label,
@@ -104,6 +104,13 @@ async def menu_main(callback: CallbackQuery, session: AsyncSession, locale: Loca
 async def menu_tag_list(callback: CallbackQuery, session: AsyncSession, locale: Locale) -> None:
     group = await ensure_group(callback, session, locale)
     if group is None:
+        return
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
+        await callback.answer(locale.get("commands.use_quick_buttons_only"), show_alert=True)
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
         return
     await send_tag_list(
         callback.bot,
@@ -211,7 +218,7 @@ async def menu_cancel(callback: CallbackQuery, state: FSMContext, session: Async
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    await send_main_menu(
+    await send_admin_panel(
         callback.bot,
         session,
         locale,

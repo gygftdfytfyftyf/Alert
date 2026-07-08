@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.handlers.helpers import ensure_group, send_main_menu
+from bot.handlers.helpers import ensure_group, send_admin_panel
 from bot.handlers.states import CreateTagState, RenameTagState
 from bot.keyboards.builders import tag_detail_keyboard
 from bot.services.quick_panel import refresh_quick_panel, send_quick_panel
@@ -45,7 +45,7 @@ async def create_tag_name(message: Message, state: FSMContext, session: AsyncSes
             reply_markup=tag_detail_keyboard(locale, tag.id),
         )
     else:
-        await send_main_menu(
+        await send_admin_panel(
             message.bot,
             session,
             locale,
