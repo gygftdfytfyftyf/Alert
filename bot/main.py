@@ -12,7 +12,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from bot.bootstrap import setup_bot
 from bot.config import get_settings
 from bot.database.session import init_db
-from bot.handlers import activity, callbacks, commands, fsm_handlers, members, quick_buttons
+from bot.handlers import activity, callbacks, commands, fsm_handlers, members, migration, quick_buttons
 from bot.middlewares.deps import DependenciesMiddleware
 
 logging.basicConfig(
@@ -41,6 +41,7 @@ async def main() -> None:
     dispatcher.update.middleware(DependenciesMiddleware(settings.locale))
 
     dispatcher.include_router(commands.router)
+    dispatcher.include_router(migration.router)
     dispatcher.include_router(callbacks.router)
     dispatcher.include_router(fsm_handlers.router)
     dispatcher.include_router(quick_buttons.router)

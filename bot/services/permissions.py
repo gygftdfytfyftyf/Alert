@@ -40,6 +40,8 @@ async def is_telegram_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
             admin.user.id == user_id and admin.status in ADMIN_STATUSES
             for admin in administrators
         )
+    except TelegramMigrateToChat as exc:
+        return await is_telegram_admin(bot, exc.migrate_to_chat_id, user_id)
     except TelegramBadRequest as exc:
         logger.warning("get_chat_administrators failed for chat %s: %s", chat_id, exc)
         return False

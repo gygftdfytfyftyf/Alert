@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import Group
 from bot.keyboards.builders import main_menu_keyboard, tag_list_keyboard
+from bot.services.group_migration import merge_groups_by_chat_id
 from bot.services.permissions import get_or_create_group, get_user_access
 from bot.services.quick_panel import send_quick_panel
 from bot.services.tags import list_tags
@@ -31,12 +32,23 @@ async def ensure_group(
             await event.answer(text, show_alert=True)
         return None
 
-    group = await get_or_create_group(
+    chat_id = message.chat.id
+    if getattr(message, "migrate_from_chat_id", None):
+        group = await merge_groups_by_chat_id(
+            session,
+            message.migrate_from_chat_id,
+            chat_id,
+        )
+        if message.chat.title:
+            group.title = message.chat.title
+            await session.commit()
+        return group
+
+    return await get_or_create_group(
         session,
-        telegram_group_id=message.chat.id,
+        telegram_group_id=chat_id,
         title=message.chat.title or "",
     )
-    return group
 
 
 async def send_user_interface(
