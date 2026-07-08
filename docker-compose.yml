@@ -1,0 +1,9 @@
+services:
+  tagbot:
+    build: .
+    container_name: telegram-tag-bot
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

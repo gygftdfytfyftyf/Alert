@@ -22,26 +22,51 @@ Telegram-бот для управления тегами (ролями) учас
 
 ## Быстрый старт
 
-1. Создайте бота через [@BotFather](https://t.me/BotFather) и получите токен.
+### 1. Создайте бота в Telegram
 
-2. Установите зависимости:
+1. Откройте [@BotFather](https://t.me/BotFather)
+2. Отправьте `/newbot` и следуйте инструкциям
+3. Скопируйте выданный **токен**
+4. В BotFather выполните `/setprivacy` → выберите бота → **Disable** (чтобы бот видел сообщения участников)
+
+### 2. Установка и запуск
 
 ```bash
-python -m venv .venv
+bash scripts/setup.sh    # установит зависимости и запросит токен
+bash scripts/run.sh      # запустит бота
+```
+
+Или вручную:
+
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env     # вписать BOT_TOKEN
+python3 scripts/check_token.py   # проверка и ссылка для группы
+python3 -m bot.main
 ```
 
-3. Скопируйте и заполните переменные окружения:
+### 3. Добавьте бота в группу
 
-```bash
-cp .env.example .env
+После запуска скрипт `check_token.py` покажет ссылку вида:
+
+```
+https://t.me/ВАШ_БОТ?startgroup=true
 ```
 
-4. Запустите бота:
+1. Перейдите по ссылке или найдите бота в Telegram
+2. Выберите группу и добавьте бота
+3. **Выдайте боту права администратора**
+4. В группе отправьте `/menu`
+
+Бот автоматически пришлёт приветствие при добавлении в группу.
+
+### Docker
 
 ```bash
-python -m bot.main
+cp .env.example .env   # указать BOT_TOKEN
+docker compose up -d --build
 ```
 
 ## Переменные окружения

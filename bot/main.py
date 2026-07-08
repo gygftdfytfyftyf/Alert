@@ -9,6 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
+from bot.bootstrap import setup_bot
 from bot.config import get_settings
 from bot.database.session import init_db
 from bot.handlers import activity, callbacks, commands, fsm_handlers, members
@@ -32,6 +33,10 @@ async def main() -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+    me = await bot.get_me()
+    await setup_bot(bot)
+    logger.info("Bot @%s is ready for groups", me.username)
+
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher.update.middleware(DependenciesMiddleware(settings.locale))
 
@@ -41,7 +46,7 @@ async def main() -> None:
     dispatcher.include_router(members.router)
     dispatcher.include_router(activity.router)
 
-    logger.info("Bot started")
+    logger.info("Polling started")
     await dispatcher.start_polling(
         bot,
         allowed_updates=["message", "callback_query", "my_chat_member", "chat_member"],
