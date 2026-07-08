@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import Group
 from bot.keyboards.builders import main_menu_keyboard, tag_list_keyboard
-from bot.services.permissions import get_or_create_group, is_chat_admin
-from bot.services.tags import can_use_tags, can_view_tag_list, list_tags
+from bot.services.permissions import get_or_create_group, get_user_access
+from bot.services.tags import list_tags
 from bot.utils.text import Locale
 
 
@@ -48,11 +48,23 @@ async def send_main_menu(
     *,
     edit_message_id: int | None = None,
 ) -> None:
-    is_admin = await is_chat_admin(bot, group.telegram_group_id, user_id)
-    can_view = await can_view_tag_list(group, is_admin)
-    can_call = is_admin or await can_use_tags(bot, session, group, user_id)
-    text = locale.get("commands.menu_title")
-    keyboard = main_menu_keyboard(locale, is_admin, can_view, can_call)
+    access = await get_user_access(bot, session, group, user_id)
+    if not access.can_manage and not access.can_view_tags and not access.can_call_tags:
+        text = locale.get("no_permission")
+        keyboard = None
+    else:
+        text = (
+            locale.get("commands.menu_title_manage")
+            if access.can_manage
+            else locale.get("commands.menu_title_call")
+        )
+        keyboard = main_menu_keyboard(
+            locale,
+            can_manage=access.can_manage,
+            can_assign_editors=access.can_assign_editors,
+            can_view_tags=access.can_view_tags,
+            can_call_tags=access.can_call_tags,
+        )
 
     if edit_message_id is not None:
         await bot.edit_message_text(
@@ -73,28 +85,34 @@ async def send_tag_list(
     user_id: int,
     group: Group,
     *,
-    for_call: bool = False,
     edit_message_id: int | None = None,
 ) -> None:
-    is_admin = await is_chat_admin(bot, group.telegram_group_id, user_id)
-    can_view = await can_view_tag_list(group, is_admin)
+    access = await get_user_access(bot, session, group, user_id)
 
-    if not can_view and not for_call:
-        await bot.send_message(chat_id, locale.get("no_permission"))
-        return
-
-    if for_call and not await can_use_tags(bot, session, group, user_id) and not is_admin:
+    if not access.can_manage and not access.can_view_tags and not access.can_call_tags:
         await bot.send_message(chat_id, locale.get("no_permission"))
         return
 
     tags = await list_tags(session, group.id)
     if not tags:
         text = locale.get("no_tags")
-        can_call = is_admin or await can_use_tags(bot, session, group, user_id)
-        keyboard = main_menu_keyboard(locale, is_admin, can_view, can_call)
-    else:
+        keyboard = main_menu_keyboard(
+            locale,
+            can_manage=access.can_manage,
+            can_assign_editors=access.can_assign_editors,
+            can_view_tags=access.can_view_tags,
+            can_call_tags=access.can_call_tags,
+        ) if (access.can_manage or access.can_call_tags or access.can_view_tags) else None
+    elif access.can_manage:
         text = locale.get("commands.tags_title")
-        keyboard = tag_list_keyboard(locale, tags, is_admin=is_admin, for_call=for_call)
+        keyboard = tag_list_keyboard(locale, tags, for_call=False)
+    elif access.can_call_tags:
+        text = locale.get("commands.tags_title_call")
+        keyboard = tag_list_keyboard(locale, tags, for_call=True)
+    else:
+        names = "\n".join(f"• {tag.name}" for tag in tags)
+        text = locale.get("commands.tags_title_view") + "\n\n" + names
+        keyboard = None
 
     if edit_message_id is not None:
         await bot.edit_message_text(

@@ -12,24 +12,27 @@ from bot.database.models import ChangeLog, Group
 from bot.handlers.helpers import ensure_group, send_main_menu, send_tag_list
 from bot.handlers.states import AssignMembersState, CreateTagState, RenameTagState
 from bot.keyboards.builders import (
+    _user_label,
+    add_editor_keyboard,
     assign_members_keyboard,
     cancel_keyboard,
+    editors_menu_keyboard,
     settings_keyboard,
     tag_detail_keyboard,
 )
-from bot.keyboards.inline import AssignCB, CallTagCB, MenuCB, SettingsCB, TagCB
-from bot.services.permissions import is_bot_admin, is_chat_admin, log_change
+from bot.keyboards.inline import AssignCB, CallTagCB, EditorCB, MenuCB, SettingsCB, TagCB
+from bot.services.editors import add_editor, can_become_editor, list_editors, remove_editor
+from bot.services.permissions import (
+    can_assign_editors,
+    can_manage_tags,
+    get_user_access,
+    is_bot_admin,
+    log_change,
+)
 from bot.services.quick_panel import refresh_quick_panel, send_quick_panel
 from bot.services.tag_invoke import invoke_tag
-from bot.services.tags import (
-    can_use_tags,
-    delete_tag,
-    get_tag,
-    rename_tag,
-    tag_name_exists,
-)
+from bot.services.tags import delete_tag, get_tag, rename_tag, tag_name_exists
 from bot.services.users import (
-    format_tag_call,
     format_user_mention,
     list_active_users,
     refresh_group_members,
@@ -39,6 +42,45 @@ from bot.utils.text import Locale
 
 logger = logging.getLogger(__name__)
 router = Router(name="callbacks")
+
+
+async def _render_editors_screen(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    group: Group,
+    locale: Locale,
+) -> None:
+    users = await list_active_users(session, group.id)
+    editors = await list_editors(session, group.id)
+    editor_rows: list[tuple[int, str]] = []
+    for editor in editors:
+        user = next((item for item in users if item.telegram_user_id == editor.telegram_user_id), None)
+        editor_rows.append((editor.telegram_user_id, _user_label(user, editor.telegram_user_id)))
+
+    text = locale.get("commands.editors_title")
+    if editor_rows:
+        text += "\n\n" + "\n".join(f"• {label}" for _, label in editor_rows)
+    else:
+        text += "\n\n" + locale.get("commands.editors_empty")
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=editors_menu_keyboard(locale, editor_rows),
+    )
+
+
+async def _editor_candidates(bot, session: AsyncSession, group: Group) -> list:
+    users = await list_active_users(session, group.id)
+    editors = await list_editors(session, group.id)
+    editor_ids = {editor.telegram_user_id for editor in editors}
+    candidates = []
+    for user in users:
+        if user.telegram_user_id in editor_ids:
+            continue
+        if not await can_become_editor(bot, session, group, user.telegram_user_id):
+            continue
+        candidates.append(user)
+    return candidates
 
 
 @router.callback_query(MenuCB.filter(F.action == "main"))
@@ -63,7 +105,6 @@ async def menu_tag_list(callback: CallbackQuery, session: AsyncSession, locale: 
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    is_admin = await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id)
     await send_tag_list(
         callback.bot,
         session,
@@ -71,7 +112,6 @@ async def menu_tag_list(callback: CallbackQuery, session: AsyncSession, locale: 
         callback.message.chat.id,
         callback.from_user.id,
         group,
-        for_call=not is_admin,
         edit_message_id=callback.message.message_id,
     )
     await callback.answer()
@@ -87,7 +127,7 @@ async def menu_create_tag(
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     await state.set_state(CreateTagState.waiting_name)
@@ -104,12 +144,13 @@ async def menu_settings(callback: CallbackQuery, session: AsyncSession, locale: 
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
+    access = await get_user_access(callback.bot, session, group, callback.from_user.id)
     await callback.message.edit_text(
         locale.get("commands.settings_title"),
-        reply_markup=settings_keyboard(locale, group),
+        reply_markup=settings_keyboard(locale, group, show_editors=access.can_assign_editors),
     )
     await callback.answer()
 
@@ -119,7 +160,7 @@ async def menu_refresh_members(callback: CallbackQuery, session: AsyncSession, l
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     if not await is_bot_admin(callback.bot, group.telegram_group_id):
@@ -144,11 +185,23 @@ async def menu_quick_panel(callback: CallbackQuery, session: AsyncSession, local
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    is_admin = await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id)
-    if not is_admin and not await can_use_tags(callback.bot, session, group, callback.from_user.id):
+    access = await get_user_access(callback.bot, session, group, callback.from_user.id)
+    if not access.can_call_tags and not access.can_manage:
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     await send_quick_panel(callback.bot, session, group, locale, callback.message.chat.id)
+    await callback.answer()
+
+
+@router.callback_query(MenuCB.filter(F.action == "editors"))
+async def menu_editors(callback: CallbackQuery, session: AsyncSession, locale: Locale) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    if not await can_assign_editors(callback.bot, group, callback.from_user.id):
+        await callback.answer(locale.get("no_permission"), show_alert=True)
+        return
+    await _render_editors_screen(callback, session, group, locale)
     await callback.answer()
 
 
@@ -175,7 +228,7 @@ async def tag_open(callback: CallbackQuery, callback_data: TagCB, session: Async
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     tag = await get_tag(session, group.id, callback_data.tag_id)
@@ -200,7 +253,7 @@ async def tag_rename_start(
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     tag = await get_tag(session, group.id, callback_data.tag_id)
@@ -225,7 +278,7 @@ async def tag_delete(callback: CallbackQuery, callback_data: TagCB, session: Asy
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     tag = await get_tag(session, group.id, callback_data.tag_id)
@@ -257,7 +310,7 @@ async def tag_view_members(
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     tag = await get_tag(session, group.id, callback_data.tag_id)
@@ -284,7 +337,7 @@ async def tag_assign_start(
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     tag = await get_tag(session, group.id, callback_data.tag_id)
@@ -377,7 +430,7 @@ async def assign_save(
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     tag = await get_tag(session, group.id, callback_data.tag_id)
@@ -434,7 +487,7 @@ async def settings_toggle(
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     key = callback_data.key
@@ -461,7 +514,11 @@ async def settings_toggle(
     )
     await callback.message.edit_text(
         locale.get("commands.settings_title"),
-        reply_markup=settings_keyboard(locale, group),
+        reply_markup=settings_keyboard(
+            locale,
+            group,
+            show_editors=await can_assign_editors(callback.bot, group, callback.from_user.id),
+        ),
     )
     await callback.answer(locale.get("commands.settings_updated"))
 
@@ -471,7 +528,7 @@ async def settings_view_log(callback: CallbackQuery, session: AsyncSession, loca
     group = await ensure_group(callback, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(callback.bot, group.telegram_group_id, callback.from_user.id):
+    if not await can_manage_tags(callback.bot, session, group, callback.from_user.id):
         await callback.answer(locale.get("no_permission"), show_alert=True)
         return
     result = await session.execute(
@@ -489,5 +546,95 @@ async def settings_view_log(callback: CallbackQuery, session: AsyncSession, loca
             timestamp = entry.created_at.strftime("%d.%m.%Y %H:%M")
             lines.append(f"{timestamp} — {entry.action}: {entry.details}")
         text = "\n".join(lines)
-    await callback.message.edit_text(text, reply_markup=settings_keyboard(locale, group))
+    await callback.message.edit_text(
+        text,
+        reply_markup=settings_keyboard(
+            locale,
+            group,
+            show_editors=await can_assign_editors(callback.bot, group, callback.from_user.id),
+        ),
+    )
     await callback.answer()
+
+
+@router.callback_query(EditorCB.filter(F.action == "add"))
+async def editor_add_list(
+    callback: CallbackQuery,
+    callback_data: EditorCB,
+    session: AsyncSession,
+    locale: Locale,
+) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    if not await can_assign_editors(callback.bot, group, callback.from_user.id):
+        await callback.answer(locale.get("no_permission"), show_alert=True)
+        return
+    candidates = await _editor_candidates(callback.bot, session, group)
+    if not candidates:
+        await callback.answer(locale.get("commands.no_editor_candidates"), show_alert=True)
+        return
+    await callback.message.edit_text(
+        locale.get("commands.pick_editor"),
+        reply_markup=add_editor_keyboard(locale, candidates, callback_data.page),
+    )
+    await callback.answer()
+
+
+@router.callback_query(EditorCB.filter(F.action == "page"))
+async def editor_add_page(
+    callback: CallbackQuery,
+    callback_data: EditorCB,
+    session: AsyncSession,
+    locale: Locale,
+) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    candidates = await _editor_candidates(callback.bot, session, group)
+    await callback.message.edit_reply_markup(
+        reply_markup=add_editor_keyboard(locale, candidates, callback_data.page),
+    )
+    await callback.answer()
+
+
+@router.callback_query(EditorCB.filter(F.action == "pick"))
+async def editor_pick(
+    callback: CallbackQuery,
+    callback_data: EditorCB,
+    session: AsyncSession,
+    locale: Locale,
+) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    if not await can_assign_editors(callback.bot, group, callback.from_user.id):
+        await callback.answer(locale.get("no_permission"), show_alert=True)
+        return
+    if not await can_become_editor(callback.bot, session, group, callback_data.user_id):
+        await callback.answer(locale.get("commands.editor_not_eligible"), show_alert=True)
+        return
+    await add_editor(session, group, callback_data.user_id, callback.from_user.id)
+    await callback.answer(locale.get("commands.editor_added"))
+    await _render_editors_screen(callback, session, group, locale)
+
+
+@router.callback_query(EditorCB.filter(F.action == "remove"))
+async def editor_remove(
+    callback: CallbackQuery,
+    callback_data: EditorCB,
+    session: AsyncSession,
+    locale: Locale,
+) -> None:
+    group = await ensure_group(callback, session, locale)
+    if group is None:
+        return
+    if not await can_assign_editors(callback.bot, group, callback.from_user.id):
+        await callback.answer(locale.get("no_permission"), show_alert=True)
+        return
+    removed = await remove_editor(session, group, callback_data.user_id, callback.from_user.id)
+    if not removed:
+        await callback.answer(locale.get("commands.editor_not_found"), show_alert=True)
+        return
+    await callback.answer(locale.get("commands.editor_removed"))
+    await _render_editors_screen(callback, session, group, locale)

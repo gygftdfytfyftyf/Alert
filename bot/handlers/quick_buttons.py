@@ -9,20 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.handlers.helpers import ensure_group, is_group_chat, send_main_menu
 from bot.keyboards.reply import MENU_BUTTON, parse_quick_tag_text
-from bot.services.permissions import is_chat_admin
+from bot.services.permissions import can_assign_editors, get_user_access
 from bot.services.quick_panel import hide_quick_panel, send_quick_panel
 from bot.services.tag_invoke import invoke_tag_by_name
-from bot.services.tags import can_use_tags
 from bot.utils.text import Locale
 
 logger = logging.getLogger(__name__)
 router = Router(name="quick_buttons")
-
-
-async def _can_show_panel(bot, session, group, user_id: int) -> bool:
-    if await is_chat_admin(bot, group.telegram_group_id, user_id):
-        return True
-    return await can_use_tags(bot, session, group, user_id)
 
 
 @router.message(Command("panel"))
@@ -30,7 +23,8 @@ async def cmd_panel(message: Message, session: AsyncSession, locale: Locale) -> 
     group = await ensure_group(message, session, locale)
     if group is None:
         return
-    if not await _can_show_panel(message.bot, session, group, message.from_user.id):
+    access = await get_user_access(message.bot, session, group, message.from_user.id)
+    if not access.can_call_tags and not access.can_manage:
         await message.answer(locale.get("no_permission"))
         return
     await send_quick_panel(message.bot, session, group, locale, message.chat.id)
@@ -41,7 +35,7 @@ async def cmd_panel_hide(message: Message, session: AsyncSession, locale: Locale
     group = await ensure_group(message, session, locale)
     if group is None:
         return
-    if not await is_chat_admin(message.bot, group.telegram_group_id, message.from_user.id):
+    if not await can_assign_editors(message.bot, group, message.from_user.id):
         await message.answer(locale.get("no_permission"))
         return
     await hide_quick_panel(message.bot, locale, message.chat.id)

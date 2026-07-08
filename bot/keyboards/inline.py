@@ -25,5 +25,11 @@ class SettingsCB(CallbackData, prefix="settings"):
     key: str = ""
 
 
+class EditorCB(CallbackData, prefix="editor"):
+    action: str
+    user_id: int = 0
+    page: int = 0
+
+
 class CallTagCB(CallbackData, prefix="call"):
     tag_id: int

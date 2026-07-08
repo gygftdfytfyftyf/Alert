@@ -65,5 +65,4 @@ async def cmd_tags(message: Message, session: AsyncSession, locale: Locale) -> N
         message.chat.id,
         message.from_user.id,
         group,
-        for_call=True,
     )

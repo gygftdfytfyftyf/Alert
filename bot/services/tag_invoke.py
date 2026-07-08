@@ -6,8 +6,8 @@ from aiogram import Bot
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import Group, Tag
-from bot.services.permissions import is_chat_admin
-from bot.services.tags import can_use_tags, delete_tag, get_tag, list_tags
+from bot.services.permissions import get_user_access
+from bot.services.tags import delete_tag, get_tag, list_tags
 from bot.services.users import format_tag_call
 
 
@@ -27,13 +27,13 @@ async def invoke_tag(
     user_id: int,
     locale,
 ) -> InvokeTagResult:
-    is_admin = await is_chat_admin(bot, group.telegram_group_id, user_id)
-    if not is_admin and not await can_use_tags(bot, session, group, user_id):
+    access = await get_user_access(bot, session, group, user_id)
+    if not access.can_call_tags:
         return InvokeTagResult(ok=False, alert=locale.get("no_permission"))
 
     active_members = [member for member in tag.members if member.is_active]
     if not active_members:
-        if group.auto_delete_empty_tags and is_admin:
+        if group.auto_delete_empty_tags and access.can_manage:
             await delete_tag(session, group, tag, user_id)
             return InvokeTagResult(
                 ok=False,
@@ -61,8 +61,8 @@ async def invoke_tag_by_name(
     if tag is None:
         return InvokeTagResult(ok=False, alert=locale.get("commands.tag_not_found"))
 
-    tag = await get_tag(session, group.id, tag.id)
-    if tag is None:
+    loaded_tag = await get_tag(session, group.id, tag.id)
+    if loaded_tag is None:
         return InvokeTagResult(ok=False, alert=locale.get("commands.tag_not_found"))
 
-    return await invoke_tag(bot, session, group, tag, user_id, locale)
+    return await invoke_tag(bot, session, group, loaded_tag, user_id, locale)

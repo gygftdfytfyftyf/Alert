@@ -41,6 +41,28 @@ class Group(Base):
         back_populates="group",
         cascade="all, delete-orphan",
     )
+    editors: Mapped[list["GroupEditor"]] = relationship(
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+
+
+class GroupEditor(Base):
+    __tablename__ = "group_editors"
+    __table_args__ = (
+        UniqueConstraint("group_id", "telegram_user_id", name="uq_editor_group_user"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    added_by_telegram_id: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    group: Mapped["Group"] = relationship(back_populates="editors")
 
 
 class Tag(Base):

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from aiogram import Bot
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from bot.database.models import Group, Tag
-from bot.services.permissions import is_chat_admin, log_change
+from bot.services.permissions import log_change
 
 
 async def list_tags(session: AsyncSession, group_id: int) -> list[Tag]:
@@ -90,14 +89,3 @@ async def tag_name_exists(session: AsyncSession, group_id: int, name: str, exclu
     result = await session.execute(query)
     return result.scalar_one_or_none() is not None
 
-
-async def can_use_tags(bot: Bot, session: AsyncSession, group: Group, user_id: int) -> bool:
-    if group.who_can_use_tags == "all":
-        return True
-    return await is_chat_admin(bot, group.telegram_group_id, user_id)
-
-
-async def can_view_tag_list(group: Group, is_admin: bool) -> bool:
-    if is_admin:
-        return True
-    return group.allow_tag_list_view
