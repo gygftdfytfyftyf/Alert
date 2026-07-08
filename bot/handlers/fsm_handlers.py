@@ -12,6 +12,7 @@ from bot.handlers.states import AssignMembersState, CreateTagState, RenameTagSta
 from bot.keyboards.builders import assign_members_keyboard, tag_detail_keyboard
 from bot.services.member_resolve import resolve_member_tokens
 from bot.services.quick_panel import refresh_quick_panel, send_quick_panel
+from bot.services.tag_pending import upsert_pending_member
 from bot.services.tags import create_tag, get_tag, rename_tag, tag_name_exists
 from bot.services.users import list_active_users
 from bot.utils.text import Locale
@@ -129,7 +130,7 @@ async def assign_members_manual(
         await state.clear()
         return
 
-    added, failed = await resolve_member_tokens(
+    added, pending_specs, failed = await resolve_member_tokens(
         message.bot,
         session,
         group,
@@ -139,12 +140,17 @@ async def assign_members_manual(
     selected_ids = set(data.get("selected_ids", []))
     for user in added:
         selected_ids.add(user.id)
+    for spec in pending_specs:
+        await upsert_pending_member(session, tag_id, spec)
     await state.update_data(selected_ids=list(selected_ids))
 
     lines: list[str] = []
     if added:
         labels = ", ".join(user.first_name or user.username or str(user.telegram_user_id) for user in added)
         lines.append(locale.get("commands.members_manual_added", count=len(added), names=labels))
+    if pending_specs:
+        labels = ", ".join(spec.label for spec in pending_specs)
+        lines.append(locale.get("commands.members_manual_pending", count=len(pending_specs), names=labels))
     if failed:
         details = []
         for token, reason in failed:

@@ -79,6 +79,22 @@ class Tag(Base):
         secondary="tag_users",
         back_populates="tags",
     )
+    pending_members: Mapped[list["TagPendingMember"]] = relationship(
+        back_populates="tag",
+        cascade="all, delete-orphan",
+    )
+
+
+class TagPendingMember(Base):
+    __tablename__ = "tag_pending_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id", ondelete="CASCADE"), index=True)
+    telegram_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    label: Mapped[str] = mapped_column(String(128), default="")
+
+    tag: Mapped["Tag"] = relationship(back_populates="pending_members")
 
 
 class User(Base):

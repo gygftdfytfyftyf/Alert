@@ -18,7 +18,7 @@ async def list_tags(session: AsyncSession, group_id: int) -> list[Tag]:
 async def get_tag(session: AsyncSession, group_id: int, tag_id: int) -> Tag | None:
     result = await session.execute(
         select(Tag)
-        .options(selectinload(Tag.members))
+        .options(selectinload(Tag.members), selectinload(Tag.pending_members))
         .where(Tag.group_id == group_id, Tag.id == tag_id)
     )
     return result.scalar_one_or_none()

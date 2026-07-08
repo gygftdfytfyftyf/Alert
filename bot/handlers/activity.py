@@ -4,9 +4,12 @@ import logging
 
 from aiogram import Router
 from aiogram.types import Message
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.database.models import User
 from bot.handlers.helpers import ensure_group, is_group_chat
+from bot.services.tag_pending import promote_pending_members
 from bot.services.users import upsert_user
 from bot.utils.text import Locale
 
@@ -30,3 +33,12 @@ async def track_active_user(message: Message, session: AsyncSession, locale: Loc
         last_name=message.from_user.last_name,
         is_active=True,
     )
+    result = await session.execute(
+        select(User).where(
+            User.group_id == group.id,
+            User.telegram_user_id == message.from_user.id,
+        )
+    )
+    user = result.scalar_one_or_none()
+    if user is not None:
+        await promote_pending_members(session, group, user)

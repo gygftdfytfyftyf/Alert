@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import Group, Tag
 from bot.services.permissions import get_user_access
+from bot.services.tag_pending import format_pending_mention
 from bot.services.tags import delete_tag, get_tag, list_tags
-from bot.services.users import format_tag_call
+from bot.services.users import format_user_mention
 
 
 @dataclass
@@ -32,7 +33,8 @@ async def invoke_tag(
         return InvokeTagResult(ok=False, alert=locale.get("no_permission"))
 
     active_members = [member for member in tag.members if member.is_active]
-    if not active_members:
+    pending_members = list(tag.pending_members)
+    if not active_members and not pending_members:
         if group.auto_delete_empty_tags and access.can_manage:
             await delete_tag(session, group, tag, user_id)
             return InvokeTagResult(
@@ -42,9 +44,13 @@ async def invoke_tag(
             )
         return InvokeTagResult(ok=False, alert=locale.get("commands.tag_empty", name=tag.name))
 
+    lines = [f"🔔 {tag.name}"]
+    lines.extend(format_user_mention(member) for member in active_members)
+    lines.extend(format_pending_mention(pending) for pending in pending_members)
+
     return InvokeTagResult(
         ok=True,
-        message=format_tag_call(tag.name, active_members),
+        message="\n".join(lines),
     )
 
 

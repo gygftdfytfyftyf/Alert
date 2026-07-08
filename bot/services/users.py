@@ -220,7 +220,11 @@ async def sync_member_from_update(
             actor_telegram_id=actor_telegram_id,
         )
         return None
-    return await upsert_user(session, group.id, **fields)
+    user = await upsert_user(session, group.id, **fields)
+    from bot.services.tag_pending import promote_pending_members
+
+    await promote_pending_members(session, group, user)
+    return user
 
 
 async def set_tag_members(

@@ -343,11 +343,18 @@ async def tag_view_members(
     if tag is None:
         await callback.answer(locale.get("commands.tag_not_found"), show_alert=True)
         return
-    if not tag.members:
+    if not tag.members and not tag.pending_members:
         text = locale.get("commands.tag_empty", name=tag.name)
     else:
-        members = "\n".join(format_user_mention(member) for member in tag.members if member.is_active)
-        text = locale.get("commands.members_title", name=tag.name) + "\n\n" + members
+        member_lines = [
+            format_user_mention(member) for member in tag.members if member.is_active
+        ]
+        from bot.services.tag_pending import format_pending_mention
+
+        member_lines.extend(
+            f"⏳ {format_pending_mention(pending)}" for pending in tag.pending_members
+        )
+        text = locale.get("commands.members_title", name=tag.name) + "\n\n" + "\n".join(member_lines)
     await callback.message.edit_text(text, reply_markup=tag_detail_keyboard(locale, tag.id))
     await callback.answer()
 
