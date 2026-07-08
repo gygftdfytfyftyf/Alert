@@ -32,6 +32,13 @@ async def send_quick_panel(
         if updated
         else locale.get("commands.quick_panel_on")
     )
+
+    # Сбрасываем старую клавиатуру (в т.ч. с кнопкой «Меню»)
+    await bot.send_message(
+        chat_id,
+        locale.get("commands.quick_panel_refresh"),
+        reply_markup=remove_reply_keyboard(),
+    )
     await bot.send_message(
         chat_id,
         text,
@@ -59,8 +66,4 @@ async def refresh_quick_panel(
     tags = await list_tags(session, group.id)
     if not tags:
         return
-    await bot.send_message(
-        chat_id,
-        locale.get("commands.quick_panel_updated"),
-        reply_markup=quick_tags_reply_keyboard(locale, tags),
-    )
+    await send_quick_panel(bot, session, group, locale, chat_id, updated=True)

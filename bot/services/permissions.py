@@ -31,6 +31,8 @@ async def is_telegram_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
         member = await bot.get_chat_member(chat_id, user_id)
         if member.status in ADMIN_STATUSES:
             return True
+    except TelegramMigrateToChat as exc:
+        return await is_telegram_admin(bot, exc.migrate_to_chat_id, user_id)
     except TelegramBadRequest as exc:
         logger.warning("get_chat_member failed for user %s in chat %s: %s", user_id, chat_id, exc)
 

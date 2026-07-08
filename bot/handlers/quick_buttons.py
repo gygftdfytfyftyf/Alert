@@ -7,6 +7,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.handlers.helpers import ensure_group, is_group_chat
 from bot.keyboards.reply import parse_quick_tag_text
 from bot.services.permissions import can_assign_editors, get_user_access
 from bot.services.quick_panel import hide_quick_panel, send_quick_panel
@@ -52,6 +53,7 @@ async def quick_tag_button(message: Message, session: AsyncSession, locale: Loca
     if not tag_name:
         return
 
+    logger.info("Quick tag call: user=%s tag=%s chat=%s", message.from_user.id, tag_name, message.chat.id)
     result = await invoke_tag_by_name(
         message.bot,
         session,
