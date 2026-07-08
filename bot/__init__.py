@@ -1,0 +1,1 @@
+"""Telegram tag management bot."""
