@@ -12,6 +12,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from bot.bootstrap import setup_bot
 from bot.config import get_settings
 from bot.database.session import init_db
+from bot.health import start_health_server
 from bot.handlers import activity, callbacks, commands, fsm_handlers, members, migration, quick_buttons
 from bot.middlewares.deps import DependenciesMiddleware
 
@@ -48,6 +49,7 @@ async def main() -> None:
     dispatcher.include_router(members.router)
     dispatcher.include_router(activity.router)
 
+    await start_health_server()
     logger.info("Polling started")
     await dispatcher.start_polling(
         bot,

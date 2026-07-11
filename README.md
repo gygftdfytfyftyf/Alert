@@ -63,12 +63,32 @@ https://t.me/ВАШ_БОТ?startgroup=true
 
 Бот автоматически пришлёт приветствие при добавлении в группу.
 
-### Docker
+### Docker (локально или на VPS)
 
 ```bash
 cp .env.example .env   # указать BOT_TOKEN
 docker compose up -d --build
 ```
+
+### Постоянный онлайн-деплой (Fly.io, 24/7)
+
+Рекомендуется для продакшена: бот работает постоянно, база хранится на диске Fly.
+
+1. Зарегистрируйтесь на https://fly.io
+2. Установите CLI и войдите:
+   ```bash
+   curl -L https://fly.io/install.sh | sh
+   flyctl auth login
+   ```
+3. В корне проекта:
+   ```bash
+   cp .env.example .env   # BOT_TOKEN и BOT_OWNER_IDS
+   bash scripts/deploy-fly.sh
+   ```
+
+Альтернатива: Render — подключите репозиторий и используйте `render.yaml` (план Starter).
+
+**Важно:** не запускайте бота одновременно в двух местах (Cursor + Fly), иначе polling конфликтует.
 
 ## Переменные окружения
 
