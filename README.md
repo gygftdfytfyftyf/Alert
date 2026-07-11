@@ -70,25 +70,49 @@ cp .env.example .env   # указать BOT_TOKEN
 docker compose up -d --build
 ```
 
-### Постоянный онлайн-деплой (Fly.io, 24/7)
+### Постоянный онлайн-деплой
 
-Рекомендуется для продакшена: бот работает постоянно, база хранится на диске Fly.
+Бот нельзя держать 24/7 во временной среде Cursor — нужен хостинг с постоянным диском.
 
-1. Зарегистрируйтесь на https://fly.io
-2. Установите CLI и войдите:
-   ```bash
-   curl -L https://fly.io/install.sh | sh
-   flyctl auth login
-   ```
-3. В корне проекта:
-   ```bash
-   cp .env.example .env   # BOT_TOKEN и BOT_OWNER_IDS
-   bash scripts/deploy-fly.sh
-   ```
+#### Вариант A — Railway (проще всего, через браузер)
 
-Альтернатива: Render — подключите репозиторий и используйте `render.yaml` (план Starter).
+1. https://railway.app → войти через **GitHub**
+2. **New Project** → **Deploy from GitHub repo** → репозиторий `Alert`
+3. Ветка: `cursor/telegram-tag-bot-8d30` (или `main` после мержа)
+4. **Variables** → добавить:
+   - `BOT_TOKEN` = токен от @BotFather
+   - `BOT_OWNER_IDS` = `7970058531`
+   - `DATABASE_URL` = `sqlite+aiosqlite:////data/bot.db`
+5. **Volumes** → Add Volume → mount path: `/data`
+6. Дождаться деплоя
 
-**Важно:** не запускайте бота одновременно в двух местах (Cursor + Fly), иначе polling конфликтует.
+Стоимость: ~$5/мес после пробного кредита.
+
+#### Вариант B — Render (тоже через браузер)
+
+1. https://render.com → войти через GitHub
+2. **New** → **Blueprint** → репозиторий `Alert` (файл `render.yaml` подхватится)
+3. Указать `BOT_TOKEN` и `BOT_OWNER_IDS` при создании
+4. План **Starter** (~$7/мес) — нужен для worker + диска
+
+#### Вариант C — свой VPS (самый надёжный)
+
+На Ubuntu-сервере (Hetzner, Timeweb, Selectel и т.д.):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gygftdfytfyftyf/Alert/cursor/telegram-tag-bot-8d30/scripts/deploy-vps.sh | sudo bash
+# отредактировать /opt/aya-teg-bot/.env
+sudo bash /opt/aya-teg-bot/scripts/deploy-vps.sh
+```
+
+#### Вариант D — Fly.io (через CLI)
+
+```bash
+flyctl auth login
+bash scripts/deploy-fly.sh
+```
+
+**Важно:** не запускайте бота в двух местах одновременно (Cursor + хостинг) — polling конфликтует.
 
 ## Переменные окружения
 
