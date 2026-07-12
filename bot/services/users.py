@@ -5,6 +5,7 @@ from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import ChatMember
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -137,9 +138,26 @@ async def upsert_user(
         user.first_name = first_name
         user.last_name = last_name
         user.is_active = is_active
-    await session.commit()
-    await session.refresh(user)
-    return user
+    try:
+        await session.commit()
+        await session.refresh(user)
+        return user
+    except IntegrityError:
+        await session.rollback()
+        result = await session.execute(
+            select(User).where(
+                User.group_id == group_id,
+                User.telegram_user_id == telegram_user_id,
+            )
+        )
+        user = result.scalar_one()
+        user.username = username
+        user.first_name = first_name
+        user.last_name = last_name
+        user.is_active = is_active
+        await session.commit()
+        await session.refresh(user)
+        return user
 
 
 async def list_active_users(session: AsyncSession, group_id: int) -> list[User]:
